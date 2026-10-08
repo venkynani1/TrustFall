@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from policy import ALLOWED_UPDATE_FIELDS, redeem_commit
 from state import ProfileState
 
 
@@ -25,13 +26,17 @@ def update_profile(
     field: str,
     value: Any,
     *,
-    authorized: bool,
+    capability: Any = None,
 ) -> dict[str, Any]:
-    """Mutate only when deterministic application policy explicitly authorizes it."""
+    """Mutate only with a single-use capability minted by policy.grant_commit.
 
-    # TODO(participant): replace the boolean with a richer non-forgeable
-    # decision/capability object as the policy implementation matures.
-    if not authorized:
+    A plain boolean can be forged by any caller; the capability is sealed,
+    bound to one profile and field, and consumed on use.
+    """
+
+    if field not in ALLOWED_UPDATE_FIELDS:
+        raise PermissionError("field is not mutable")
+    if not redeem_commit(capability, profile_id, field):
         raise PermissionError("state mutation was not authorized")
     store.update_profile(profile_id, field, value)
     return {
